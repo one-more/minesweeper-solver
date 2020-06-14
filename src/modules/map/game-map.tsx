@@ -1,12 +1,11 @@
 import React, {PureComponent} from "react";
-import {CellStatus} from "./reducer";
+import {CellStatus, MapModuleState} from "./reducer";
 import {connect} from "react-redux";
-import {gameMapStateSelector} from "./selectors";
+import {mapModuleStateSelector} from "./selectors";
 import styled from "@emotion/styled";
 import {apiActions} from "~/modules/api";
 
-export type GameMapProps = {
-    grid: CellStatus[][],
+export type GameMapProps = MapModuleState & {
     openByCoords: (x: number, y: number) => void
 }
 export class GameMapComponent extends PureComponent<GameMapProps> {
@@ -22,8 +21,10 @@ export class GameMapComponent extends PureComponent<GameMapProps> {
                                         <Cell
                                             status={cellStatus}
                                             key={cellIndex}
-                                            onClick={() => this.props.openByCoords(rowIndex, cellIndex)}
-                                        />)
+                                            onClick={() => this.props.openByCoords(cellIndex, rowIndex)}
+                                        >
+                                            {this.props.hints[rowIndex][cellIndex]}
+                                        </Cell>)
                                 }
                             </Row>
                     )
@@ -31,7 +32,7 @@ export class GameMapComponent extends PureComponent<GameMapProps> {
         </Container>
     }
 }
-export const GameMap = connect(gameMapStateSelector, apiActions)(GameMapComponent)
+export const GameMap = connect(mapModuleStateSelector, apiActions)(GameMapComponent)
 
 const Container = styled.div``
 const Row = styled.div`
@@ -48,6 +49,9 @@ const Cell = styled.div`
   height: 50px;
   border: 1px solid grey;
   cursor: pointer;
-  background: ${({status}: CellProps): string => status === CellStatus.OK ? 'green' : status === CellStatus.LOOSE ? 'red' : ''};
+  background: ${({status}: CellProps): string => status === CellStatus.LOOSE ? 'red' : ''};
   flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 `
