@@ -1,9 +1,10 @@
 import React, {PureComponent} from "react";
-import {CellStatus, MapModuleState} from "./reducer";
+import {MapModuleState} from "./reducer";
 import {connect} from "react-redux";
 import {mapModuleStateSelector} from "./selectors";
 import styled from "@emotion/styled";
 import {apiActions} from "~/modules/api";
+import {CellStatus} from "~/modules/matrix";
 
 export type GameMapProps = MapModuleState & {
     openByCoords: (x: number, y: number) => void
@@ -12,18 +13,18 @@ export class GameMapComponent extends PureComponent<GameMapProps> {
     render(): JSX.Element {
         return <Container>
             {
-                this.props.grid
+                this.props.matrix
                     .map(
                         (row, rowIndex) =>
                             <Row key={rowIndex}>
                                 {
-                                    row.map((cellStatus, cellIndex) =>
+                                    row.map((cell, cellIndex) =>
                                         <Cell
-                                            status={cellStatus}
+                                            status={cell.status}
                                             key={cellIndex}
                                             onClick={() => this.props.openByCoords(cellIndex, rowIndex)}
                                         >
-                                            {this.props.hints[rowIndex][cellIndex]}
+                                            {cell.hint === -1 ? '' : cell.hint}
                                         </Cell>)
                                 }
                             </Row>

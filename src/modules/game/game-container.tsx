@@ -1,4 +1,4 @@
-import React, {ChangeEvent, PureComponent, ReactNode, SyntheticEvent} from "react";
+import React, {PureComponent, ReactNode} from "react";
 import {GameModuleState, GameStatus} from "./reducer";
 import {connect} from "react-redux";
 import styled from "@emotion/styled";
@@ -9,6 +9,7 @@ export type GameContainerProps = GameModuleState & {
     children: ReactNode,
     startSession: (level: number) => void
     nextStep: () => void;
+    tryToSolve: () => void;
 }
 export class GameContainerComponent extends PureComponent<GameContainerProps> {
     onLevelChange = (e: React.ChangeEvent<HTMLSelectElement>) => this.props.startSession(+e.target.value)
@@ -17,6 +18,7 @@ export class GameContainerComponent extends PureComponent<GameContainerProps> {
         return <Container>
             <Controls>
                 <button onClick={this.props.nextStep}>next step</button>
+                <button onClick={this.props.tryToSolve}>try to solve</button>
                 <div>
                     <label htmlFor="game-level-select">Select level:&nbsp;</label>
                     <select id="game-level-select" onChange={this.onLevelChange}>
@@ -31,10 +33,18 @@ export class GameContainerComponent extends PureComponent<GameContainerProps> {
                 {this.props.children}
             </ChildrenContainer>
             {this.props.status === GameStatus.LOST &&
-                <LostOverlay>
+                <Overlay>
                     <h1>You lost</h1>
                     <button onClick={() => this.props.startSession(this.props.level)}>Try again</button>
-                </LostOverlay>
+                </Overlay>
+            }
+            {this.props.status === GameStatus.WIN &&
+                <Overlay>
+                    <h1>
+                        {this.props.openActionResponse}
+                    </h1>
+                    <button onClick={() => this.props.startSession(this.props.level)}>Try again</button>
+                </Overlay>
             }
         </Container>
     }
@@ -57,7 +67,7 @@ const Container = styled.div`
   position: relative;
   flex-direction: column;
 `
-const LostOverlay = styled.div`
+const Overlay = styled.div`
   position: absolute;
   top: 0;
   left: 0;

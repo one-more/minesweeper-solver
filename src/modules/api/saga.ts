@@ -1,7 +1,8 @@
 import {takeEvery, put} from "redux-saga/effects"
-import {apiActions, OpenByCoordsPayload, StartSessionPayload} from "./reducer";
+import {apiActions, CellStatusPayload, OpenByCoordsPayload, StartSessionPayload} from "./reducer";
 import {Action} from "redux-actions";
-import {HintValue, Matrix, nextStep} from "~/modules/solver";
+import {nextStep} from "~/modules/solver";
+import {createMatrix, Matrix} from "~/modules/matrix";
 
 /**
  help      - returns valid commands
@@ -9,6 +10,12 @@ import {HintValue, Matrix, nextStep} from "~/modules/solver";
  map       - returns the current map
  open X Y  - opens cell at X,Y coordinates
  **/
+
+/**
+ * passwords:
+ * L1 - ThisWasEasy
+ * L2 - NotSoMuch
+ */
 
 const url = 'wss://hometask.eg1236.com/game1/'
 const webSocket = new WebSocket(url);
@@ -24,19 +31,7 @@ const sendMessage = (command: string) => new Promise(resolve => {
     }
 })
 
-const storage = new Map<'matrix', Matrix>()
-
-function createMatrix(schema: string): Matrix {
-    return schema.split('\n').map(
-        (line, y) => line.split('')
-            .map((symbol, x) => ({
-                x,
-                y,
-                hint: (isNaN(Number(symbol)) ? -1 : Number(symbol)) as HintValue,
-                bombProbability: 0,
-            }))
-    )
-}
+const storage = new Map<'matrix' | 'status' | 'level', Matrix | CellStatusPayload | number>()
 
 export function* getMap() {
     const mapResp = yield socketReady.then(() => sendMessage('map'))
@@ -53,38 +48,67 @@ export function* startSession(action: Action<StartSessionPayload>): Generator {
     const {payload: {level}} = action
     yield socketReady.then(() => sendMessage(`new ${level}`))
     yield* getMap()
+    storage.set('status', 'OK')
+    storage.set('level', level)
 }
 
 export function* openByCoords(action: Action<OpenByCoordsPayload>): Generator {
     const {payload: {x, y}} = action
 
     const resp = yield socketReady.then(() => sendMessage(`open ${x} ${y}`))
-    const normalizedResp = (resp as string).replace('open:', '').trim()
-    const status = normalizedResp === 'OK' ? 'OK' : 'LOOSE'
+
+    const status = getStatusFromOpenResponse(resp as string)
     yield put(
         apiActions.openByCoordsResponse(
             x,
             y,
             status,
+            (resp as string).replace('open:', '').trim()
         )
     )
+    storage.set('status', status)
 
-    if (status === 'OK') {
-        yield* getMap()
+    yield* getMap()
+}
+
+function getStatusFromOpenResponse(response: string): CellStatusPayload {
+    const normalizedResp = response.replace('open:', '').trim().toUpperCase()
+    if (normalizedResp === 'OK') {
+        return 'OK'
     }
+    if (normalizedResp.includes('LOSE')) {
+        return 'LOOSE'
+    }
+    return 'WIN'
 }
 
 export function* nextStepSaga(): Generator {
-    const matrix = storage.get('matrix')
+    const matrix = storage.get('matrix') as Matrix
     const {x, y} = nextStep(
         matrix,
-        matrix.length ** 2,
+        matrix.length,
     )
     yield* openByCoords(apiActions.openByCoords(x, y))
+}
+
+export function* tryToSolve(): Generator {
+    let retries = 100
+    while (retries > 0) {
+        yield* nextStepSaga()
+
+        if (storage.get('status') === 'WIN') {
+            retries = 0
+        }
+        if (storage.get('status') === 'LOOSE') {
+            retries--
+            yield* startSession(apiActions.startSession(storage.get('level') as number))
+        }
+    }
 }
 
 export function* apiSaga() {
     yield takeEvery(apiActions.startSession.toString(), startSession)
     yield takeEvery(apiActions.openByCoords.toString(), openByCoords)
     yield takeEvery(apiActions.nextStep.toString(), nextStepSaga)
+    yield takeEvery(apiActions.tryToSolve.toString(), tryToSolve)
 }
